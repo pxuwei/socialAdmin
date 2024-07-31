@@ -1,35 +1,98 @@
-import { BaseLogMiddleware } from './middleware/log';
-import { BaseAuthorityMiddleware } from './middleware/authority';
-import { ModuleConfig } from '@cool-midway/core';
+import { ModuleConfig, config } from "/@/cool";
+import VueECharts from "vue-echarts";
+import ElementPlus from "element-plus";
+import "element-plus/theme-chalk/src/index.scss";
+import "./static/css/index.scss";
+import { useStore } from "./store";
 
-/**
- * 模块的配置
- */
-export default () => {
-  return {
-    // 模块名称
-    name: '权限管理',
-    // 模块描述
-    description: '基础的权限管理功能，包括登录，权限校验',
-    // 中间件
-    globalMiddlewares: [BaseAuthorityMiddleware, BaseLogMiddleware],
-    // 模块加载顺序，默认为0，值越大越优先加载
-    order: 10,
-    // app参数配置允许读取的key
-    allowKeys: [],
-    // jwt 生成解密token的
-    jwt: {
-      // 单点登录
-      sso: false,
-      // 注意： 最好重新修改，防止破解
-      secret: 'cool-admin-xxxxxx',
-      // token
-      token: {
-        // 2小时过期，需要用刷新token
-        expire: 2 * 3600,
-        // 15天内，如果没操作过就需要重新登录
-        refreshExpire: 24 * 3600 * 15,
-      },
-    },
-  } as ModuleConfig;
+export default (): ModuleConfig => {
+	return {
+		order: 99,
+		components: Object.values(import.meta.glob("./components/**/*.{vue,tsx}")),
+		views: [
+			{
+				path: "/my/info",
+				meta: {
+					label: "个人中心"
+				},
+				component: () => import("./views/info.vue")
+			}
+		],
+		pages: [
+			{
+				path: "/login",
+				component: () => import("./pages/login/index.vue")
+			},
+			{
+				path: "/401",
+				meta: {
+					process: false
+				},
+				component: () => import("./pages/error/401.vue")
+			},
+			{
+				path: "/403",
+				meta: {
+					process: false
+				},
+				component: () => import("./pages/error/403.vue")
+			},
+			{
+				path: "/404",
+				meta: {
+					process: false
+				},
+				component: () => import("./pages/error/404.vue")
+			},
+			{
+				path: "/500",
+				meta: {
+					process: false
+				},
+				component: () => import("./pages/error/500.vue")
+			},
+			{
+				path: "/502",
+				meta: {
+					process: false
+				},
+				component: () => import("./pages/error/502.vue")
+			}
+		],
+		install(app) {
+			// element-plus
+			app.use(ElementPlus);
+
+			// charts
+			app.component("v-chart", VueECharts);
+
+			// 设置标题
+			document.title = config.app.name;
+		},
+		async onLoad() {
+			const { user, menu, app } = useStore();
+
+			// token 事件
+			async function hasToken(cb: () => Promise<any> | void) {
+				if (cb) {
+					app.addEvent("hasToken", cb);
+
+					if (user.token) {
+						await cb();
+					}
+				}
+			}
+
+			await hasToken(async () => {
+				// 获取用户信息
+				user.get();
+				// 获取菜单权限
+				await menu.get();
+			});
+
+			return {
+				hasToken
+			};
+		}
+	};
 };
